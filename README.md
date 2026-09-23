@@ -4,17 +4,19 @@
 
 ## About
 This project demonstrates the feasibility of using HDA-Link audio codecs—such as the ALC889—in conjunction with the RP2040 microcontroller and its PIO coprocessors.
-Four state machines (SMs), numbered 0 through 3, are used to implement the HDA-Link interface. In this project, the SMs are utilized as follows:
+Four state machines (SMs), numbered 0 through 3, are used to implement the HDA-Link interface. 
 
-0 – DOUT output;
+The SMs are utilized as follows:
+| SM | assignment |
+|----|------------|
+| 0  | **DOUT** output|
+| 1  | **SYNC** output|
+| 2  | **DIN** input, and **BCLK** and "start-of-frame" (SoF) outputs|
+| 3  | detection of the codec's address request and address assignment|
 
-1 – SYNC output;
+After the codec address request and assignment phase completes (upon return from the `hdal_codec_reset()` function), **SM3** can be stopped and used for other purposes.
 
-2 – DIN input, along with BCLK and "start-of-frame" (SoF) outputs;
-
-3 – detection of the codec's address request and address assignment.
-
-*RP2040 pin assignments:*
+**RP2040 pin assignments:**
 | RP2040 Pin | Signal      | ALC889 Pin | Note  |
 |------------|-------------|------------|-------|
 |     4      | SoF         |     -      | Debug |
