@@ -1,0 +1,45 @@
+# .idea
+
+build
+cmake-*
+
+.DS_Store
+
+### C++ template
+# Compiled Object files
+*.slo
+*.lo
+*.o
+*.obj
+
+# Precompiled Headers
+*.gch
+*.pch
+
+# Compiled Dynamic libraries
+*.so
+*.dylib
+*.dll
+
+# Fortran module files
+*.mod
+
+# Compiled Static libraries
+*.lai
+*.la
+*.a
+*.lib
+
+# Executables
+*.exe
+*.out
+*.app
+
+bin/*.bin
+bin/*.dis
+bin/*.elf
+bin/*.elf.map
+bin/*.hex
+#bin/*.uf2
+
+*.*-

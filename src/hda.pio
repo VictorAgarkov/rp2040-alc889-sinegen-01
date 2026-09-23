@@ -1,0 +1,250 @@
+;  
+;  Copyright (c) 2026, Victor Agarkov
+;             victoragarkov@gmail.com
+;  
+;  SPDX-License-Identifier: GPL-3.0-or-later
+;  
+; High definition audio (HDA) Link interface
+; RP2040 PIO routines
+;  
+;  
+;  
+
+
+; ------------------------------------------------------------------------------
+
+
+
+.define PUBLIC  LINK_BCLK_LEN 4
+.define DLY1   (LINK_BCLK_LEN - 2)
+.define DLY2   (LINK_BCLK_LEN - 1)
+// частота на выходе BCLK равна
+// Fbclk = Fsys / 2 / LINK_BCLK_LEN
+// LINK_BCLK_LEN должна быть 2 или больше
+
+.define PUBLIC PIN_HDA_SOF_BCLK 4   // 4, 5 - sideset pins for SoF & BCLK
+.define PUBLIC PIN_HDA_DOUT     6
+.define PUBLIC PIN_HDA_SYNC     7
+.define PUBLIC PIN_HDA_SDI      8
+.define PUBLIC PIN_HDA_RST      9
+
+
+; ------------------------------------------------------------------------------
+;.program clock
+;.side_set 1
+;
+;.wrap_target
+;	nop side 1
+;	nop side 0
+;.wrap
+;; ------------------------------------------------------------------------------
+;.program ddr
+;.side_set 1
+;
+;.wrap_target
+;    ; Так как включен Autopull на 28 бит, в начале этого цикла
+;    ; аппаратный OSR гарантированно имеет внутри свежие данные
+;    out pins, 1     side 1  [2]
+;    out pins, 1     side 0  [2]
+;.wrap
+
+
+; ------------------------------------------------------------------------------
+;Версия без EoF и BCLK
+.program out_1000bit
+
+	// получаем 500-2=248 из main
+	pull block              // получаем счётчик бит
+	mov  Y, osr             // сохраняем счётчик
+	out  null, 32           // дропаем полученный счётчик из OSR, что бы он не вышел наружу
+
+	.wrap_target
+		mov X, Y           
+
+	bit_loop:
+
+		out pins, 1          [DLY2]
+		out pins, 1          [DLY1]
+		jmp X-- bit_loop   
+
+		out pins, 1          [DLY2]
+		out pins, 25         [DLY1]
+	.wrap
+
+
+; ------------------------------------------------------------------------------
+;Версия с выходом EoF и BCLK
+;.program out_1000bit
+;.side_set 2
+;
+;    // side_set[0] - clock out (BCLK)
+;    // side_set[1] - last bit of frame, EoF (1 clk before wrap, 1 clk after wrap)
+;
+;	// получаем 500-2=248 из main
+;	pull block             side 0   // получаем счётчик бит
+;	mov  Y, osr            side 2   // сохраняем счётчик
+;	out  null, 32          side 2   // дропаем полученный счётчик из OSR, что бы он не вышел наружу
+;
+;	.wrap_target
+;		mov X, Y           side 3
+;
+;	bit_loop:
+;
+;		out pins, 1        side 0    [DLY2]
+;		out pins, 1        side 1    [DLY1]
+;		jmp X-- bit_loop   side 1
+;
+;		out pins, 1        side 0    [DLY2]
+;		out pins, 25       side 3    [DLY1]
+;	.wrap
+;
+
+
+; ------------------------------------------------------------------------------
+.program in_500bit
+.side_set 2
+
+    // side_set[0] - SoF (start of frame)
+    // side_set[1] - BCLK clock out / strobe data moment
+
+	// получаем 498 из main
+	pull block             side 0   // получаем счётчик бит
+	mov  Y, osr            side 0   [2 + LINK_BCLK_LEN * 1]  // [2]
+
+	.wrap_target
+	mov X, Y               side 1   [DLY2]
+
+	bit_loop:
+	in  pins, 1            side 2   [DLY2]
+	jmp X-- bit_loop       side 0   [DLY2]
+	in pins, 32            side 3   [DLY2]
+	.wrap
+
+
+; ------------------------------------------------------------------------------
+// один раз отправляем кодеку импульс Codec Address (CAD)
+// на линию SDI после сброса.
+
+.program codec_address
+
+	pull block
+	mov  Y, osr
+	
+	set    pins, 0
+	wait   1 gpio PIN_HDA_SDI
+	wait   0 gpio PIN_HDA_SDI
+	
+	loop:
+	jmp    Y-- loop
+	
+	set    pindirs, 1 [LINK_BCLK_LEN * 2 - 1]
+	set    pins,    1 [LINK_BCLK_LEN * 4 - 1]
+	nop               [LINK_BCLK_LEN * 4 - 1]
+	
+
+	//wait   1 gpio PIN_HDA_SYNC
+	// set    pindirs, 1 [LINK_BCLK_LEN * 7 - 2]      // 26 @LINK_BCLK_LEN = 4, 19 @ ..=3
+	// set    pins,    1 [LINK_BCLK_LEN * 2 - 1]      // 7 @LINK_BCLK_LEN = 4, 5 @ ..=3
+
+	set    pins, 0   [31]
+
+	push   noblock                                    // сигнализируем main, что адрес назначен
+	
+	.wrap_target
+	set    pindirs, 0
+	.wrap
+
+	
+; ------------------------------------------------------------------------------
+% c-sdk {
+	
+#if (LINK_BCLK_LEN < 2)
+    #error "LINK_BCLK_LEN must be more than 1"
+#endif
+
+//----------------------------------------------------------------------------------------------------------------------
+static inline void out_1000bit_program_init(PIO pio, uint sm, uint offset, uint data_pin)
+//static inline void out_1000bit_program_init(PIO pio, uint sm, uint offset, uint clk_pin, uint data_pin)
+{
+	// Настраиваем конфиг
+    pio_sm_config c = out_1000bit_program_get_default_config(offset);
+    //c.clkdiv = 2 << 16;
+
+    // Настраиваем DOUT (SYNC) выход
+    pio_gpio_init(pio, data_pin);
+    pio_sm_set_consecutive_pindirs(pio, sm, data_pin, 1, true);
+    sm_config_set_out_pins(&c, data_pin, 1);  // DOUT для команды 'out'
+
+	//// Настраиваем EoF + BCLK (раскомментировать для соотв. program)
+    //pio_gpio_init(pio, clk_pin + 0);
+    //pio_gpio_init(pio, clk_pin + 1);
+    //pio_sm_set_consecutive_pindirs(pio, sm, clk_pin,  2, true);
+    //sm_config_set_sideset_pins(&c, clk_pin); // CLKOUT для side-set
+
+    // НАСТРОЙКА СДВИГА (Магия Autopull):
+    // true  - сдвиг вправо (от младших к старшим битам, или false для сдвига влево)
+    // true  - включить AUTOPULL (автоматическая загрузка из FIFO)
+    // N    - порог срабатывания. Как только улетит N бит, OSR обновится!
+    sm_config_set_out_shift(&c, false, true, 32);
+	
+	// приклеиваем fifo приёмника к fifo передатчика, что бы удвоить размер 
+	sm_config_set_fifo_join(&c, PIO_FIFO_JOIN_TX);
+
+    // Загружаем конфиг
+    pio_sm_init(pio, sm, offset, &c);
+    //pio_sm_set_enabled(pio, sm, true); - не запускаем, запустим в main всё одновременно pio_set_sm_mask_enabled
+}
+
+//----------------------------------------------------------------------------------------------------------------------
+static inline void in_500bit_program_init(PIO pio, uint sm, uint offset)
+{
+	// Настраиваем конфиг
+    pio_sm_config c = in_500bit_program_get_default_config(offset);
+    //c.clkdiv = 2 << 16;
+
+    // Настраиваем ножки PIN_HDA_SOF_BCLK на работу с sideset
+    pio_gpio_init(pio, PIN_HDA_SOF_BCLK + 0);
+    pio_gpio_init(pio, PIN_HDA_SOF_BCLK + 1);
+    pio_sm_set_consecutive_pindirs(pio, sm, PIN_HDA_SOF_BCLK,  2, true);
+    sm_config_set_sideset_pins(&c, PIN_HDA_SOF_BCLK); 
+
+	// Настраиваем DIN как PIO
+    pio_gpio_init(pio, PIN_HDA_SDI);
+    pio_sm_set_consecutive_pindirs(pio, sm, PIN_HDA_SDI, 1, false);
+    sm_config_set_in_pins(&c, PIN_HDA_SDI);  // DIN для команды 'in'
+
+    // НАСТРОЙКА СДВИГА (Магия Autopush):
+    // true  - сдвиг вправо (от младших к старшим битам, или false для сдвига влево)
+    // true  - включить AUTOPUSH (автоматическая загрузка в FIFO)
+    // N    - порог срабатывания. Как только прилетит N бит, OSR обновится!
+    sm_config_set_in_shift(&c, false, true, 32);
+	
+	// НЕ приклеиваем fifo передатчика к fifo приёмника, что бы удвоить размер,
+	// потому что TX нужен для загрузки длины в sm
+	//sm_config_set_fifo_join(&c, PIO_FIFO_JOIN_RX)
+
+    // Загружаем конфиг
+    pio_sm_init(pio, sm, offset, &c);
+    //pio_sm_set_enabled(pio, sm, true); - не запускаем, запустим в main всё одновременно pio_set_sm_mask_enabled
+}
+
+//----------------------------------------------------------------------------------------------------------------------
+static inline void codec_address_program_init(PIO pio, uint sm, uint offset)
+{
+	// здесь мы настраиваем SM на работу codec_address
+	// что бы он мог менять напраление PIN_HDA_SDI.
+	// Все остальные настройки выполнены в in_500bit
+
+    pio_sm_config c = codec_address_program_get_default_config(offset);
+	
+    // Привязываем PIN_HDA_SDI как базу для SET-команд этой SM
+    // Цифра 1 означает, что управлять мы будем одним пином
+	sm_config_set_set_pins(&c, PIN_HDA_SDI, 1);
+
+    // Загружаем конфиг
+    pio_sm_init(pio, sm, offset, &c);
+
+}
+
+%}
+; ------------------------------------------------------------------------------
