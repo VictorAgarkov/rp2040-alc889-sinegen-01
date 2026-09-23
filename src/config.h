@@ -7,6 +7,10 @@
 #ifndef CONFIG_H_INCLUDED
 	#define CONFIG_H_INCLUDED
 	
+	#define HDA_DAC_NUM    5      // number of stereo DAC
+	#define HDA_ADC_NUM    3      // number of stereo ADC
+	#define HDA_SAMPLERATE 192000 // working samplerate, Hz: 44100, 48000, 88200, 96000, 176400, 192000
+	
 	#define UART_ID uart1
 	#define BAUD_RATE 115200
 	#define UART_TX_PIN 20

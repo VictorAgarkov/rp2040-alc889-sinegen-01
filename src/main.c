@@ -436,7 +436,7 @@ int main()
 	/*****************************************
 	                 audio init
 	*****************************************/
-	samplerate_base_mul_t const *sbm = hdac_find_samplerate_base_mul(48000 * 4);
+	samplerate_base_mul_t const *sbm = hdac_find_samplerate_base_mul(HDA_SAMPLERATE);
 	if(sbm)
 	{
 		codec_spk_SBM = sbm;
@@ -466,6 +466,12 @@ int main()
 			make_next_sine(p32);   // сферический синус в вакууме 
 
 			g_SamplesOutBuff32_half_empty = -1;
+		}
+		
+		if(g_InputStreamReady)
+		{
+			// здесь нужно обработать принятые от АЦП данные
+			g_InputStreamReady = 0;
 		}
 
 
