@@ -5,10 +5,14 @@
 ## About
 This project demonstrates the feasibility of using HDA-Link audio codecs—such as the ALC889—in conjunction with the RP2040 microcontroller and its PIO coprocessors.
 Four state machines (SMs), numbered 0 through 3, are used to implement the HDA-Link interface. In this project, the SMs are utilized as follows:
- 0 – DOUT output;
- 1 – SYNC output;
- 2 – DIN input, along with BCLK and "start-of-frame" (SoF) outputs;
- 3 – detection of the codec's address request and address assignment.
+
+0 – DOUT output;
+
+1 – SYNC output;
+
+2 – DIN input, along with BCLK and "start-of-frame" (SoF) outputs;
+
+3 – detection of the codec's address request and address assignment.
 
 *RP2040 pin assignments:*
 | RP2040 Pin | Signal      | ALC889 Pin | Note  |
@@ -28,10 +32,11 @@ Four state machines (SMs), numbered 0 through 3, are used to implement the HDA-L
 |    21      | UART_RX_PIN |            |       |
 
 The project supports all sample rates compatible with the codec: 44.1, 48, 88.2, 96, 176.4, and 192 kHz. 
+
 The maximum rate — 192 kHz (48000 * 4) — is used by default.
 It defined in main.c:
 ```c
-	sbm = hdac_find_samplerate_base_mul(48000 * 4);
+sbm = hdac_find_samplerate_base_mul(48000 * 4);
 ```
 It may be change with other valid argument.
  
@@ -39,6 +44,8 @@ As a demonstration, the project utilizes all 10 audio outputs to generate indepe
 
 ## Build from source
 Building from source follows the same procedure as for most RP2040 projects.
+
+Clone and build:
 
 ```bash
 git clone https://github.com/VictorAgarkov/rp2040-alc889-sinegen-01
