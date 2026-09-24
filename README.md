@@ -91,8 +91,10 @@ if(g_SamplesInBuff32_ready)
 }
 ```
 
-## Clone and build:
+## Build from source
+Building from source follows the same procedure as for most RP2040 projects.
 
+Clone and build:
 ```bash
 git clone https://github.com/VictorAgarkov/rp2040-alc889-sinegen-01
 cd rp2040-alc889-sinegen-01
