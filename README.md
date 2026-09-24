@@ -72,11 +72,11 @@ To output signals to the DAC: periodically poll the `g_SamplesOutBuff32_empty` v
 ```c
 if(g_SamplesOutBuff32_empty)
 {
-	// буфер ЦАП пуст - готовим очередную порцию семплов
+	// DAC buffer is empty – preparing the next batch of samples
 	int32_t *dst = (int32_t*)g_SamplesOutBuff32_empty;
 	g_SamplesOutBuff32_empty = NULL;
 
-	// генерим выход
+	//  generate output
 	make_next_sine(dst); 
 }
 ```
@@ -85,7 +85,7 @@ To receive the signal from the ADC: poll the variable `g_SamplesInBuff32_ready`,
 ```c
 if(g_SamplesInBuff32_ready)
 {
-	// здесь нужно обработать принятые от АЦП данные
+	// Process the data received from the ADC here
 	int32_t *src = (int32_t*)g_SamplesInBuff32_ready;
 	g_SamplesInBuff32_ready = NULL;
 }
