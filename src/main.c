@@ -24,12 +24,6 @@
 //#include "codec.h"
 
 
-#define LEDPIN    PICO_DEFAULT_LED_PIN
-#define DBGPIN1   13  // 
-#define DBGPIN2   14  // 
-#define DBGPIN3   15  // 
-#define DBGPIN4   16  // 
-#define DBGPIN5   17  // 
 
 
 #define MIC_CH_NUM 6
@@ -58,6 +52,7 @@ volatile int      g_core1_ready       = 0; // флаг готовности вт
 
 char str[256];
 
+uint32_t last_ADC_summ = 0;
 
 //------------------------------------------------------------------------------------------------------------------------------------------------
 void nibble2char(char *dst, uint8_t nibble)
@@ -162,7 +157,7 @@ void core1_routine(void)
 		int lvl2 = (flevel >> 8) & 0x0f;
 
 		//gpio_put(DBGPIN4, lvl1 < 7 || lvl2 < 7);
-		sio_hw->gpio_togl = (1 << DBGPIN4);
+		SET_PINT(DBGPIN4);
 		//__wfi();
 	}
 
@@ -267,6 +262,9 @@ void uart_routine(void)
 //				uartputs(CRLF);
 //			}
 //			di_stat_cnt++;
+//			
+//			sprintf(str, "g_InputStreamNum = %08x"CRLF, g_InputStreamNum); uartputs(str);
+			
 		}
 		else if(received_char == '5')
 		{
@@ -280,7 +278,7 @@ void uart_routine(void)
 		}
 		else if(received_char == '6')
 		{
-			
+			sprintf(str, "last_ADC_summ = %08x"CRLF, last_ADC_summ); uartputs(str);
 		}
 		else if(received_char == '7')
 		{
@@ -363,6 +361,37 @@ void make_next_sine(int32_t * dst)
 	}
 }
 //------------------------------------------------------------------------------------------------------------------------------------------------
+// анализируем уровень сигнала на входе АЦП.
+// если он больше порога - светик мигает.
+// если меньше - светик горит постоянно.
+
+void analize_ADC_samples(int32_t* src)
+{
+	static uint32_t summ = 0;
+
+	int idx_to = codec.path_ADC_conv_count * codec_mic_SBM->mul * 2;
+	
+	for(int i = 0; i < idx_to; i++)
+	{
+		int32_t v = src[i] >> 16;
+		summ += (v > 0) ? v : -v;
+	}
+	
+	if((g_HDA_frame_count & 0x000007ff) == 0)
+	{
+		int led = 1;
+		if(g_HDA_frame_count & 0x00000800)
+		{
+			if(summ > 0x00100000) led = 0;
+			last_ADC_summ = summ;
+			summ = 0;
+		}
+
+		// зажигаем/тушим светик
+		gpio_put(LEDPIN, led);	
+	}
+}
+//------------------------------------------------------------------------------------------------------------------------------------------------
 
 int main()
 {
@@ -441,7 +470,7 @@ int main()
 	samplerate_base_mul_t const *sbm = hdac_find_samplerate_base_mul(HDA_SAMPLERATE);
 	if(sbm)
 	{
-		codec_spk_SBM = sbm;
+		codec_mic_SBM = codec_spk_SBM = sbm;
 		hdal_update_dma_tx_param_by_spk_sbm(); // задаём параметры передачи DMA
 		hdac_SetAllDacSbm(sbm);  // заводим ЦАПы кодека на нужной частоте
 		hdac_SetAllAdcSbm(sbm);  // заводим АЦПы кодека на нужной частоте
@@ -449,8 +478,6 @@ int main()
 		hdal_update_HDA_TX_buff(HDA_sync_buff_actual,  codec.stream_DAC_start, DAC_stream_count, 6 * codec_spk_SBM->mul);
 	}
 
-	// зажигаем светик
-	gpio_put(LEDPIN, 1);
 
 	/*****************************************
 	                Main loop
@@ -474,10 +501,10 @@ int main()
 			// здесь нужно обработать принятые от АЦП данные
 			int32_t *src = (int32_t*)g_SamplesInBuff32_ready;
 			g_SamplesInBuff32_ready = NULL;
+			analize_ADC_samples(src);			
 		}
 
-
-		//sio_hw->gpio_togl = (1 << DBGPIN4); // debug pin flip-flop
+		//SET_PINT(DBGPIN4); // debug pin flip-flop
     }
 }
 //------------------------------------------------------------------------------------------------------------------------------------------------

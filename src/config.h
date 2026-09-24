@@ -18,6 +18,12 @@
 	#define CRLF "\r\n"
 	#define uartputs(s) uart_puts(UART_ID, s)
 
+	#define LEDPIN    PICO_DEFAULT_LED_PIN
+	#define DBGPIN1   13  // 
+	#define DBGPIN2   14  // 
+	#define DBGPIN3   15  // 
+	#define DBGPIN4   16  // 
+	#define DBGPIN5   17  // 
 
 
 	#ifndef ARRAYSIZE
@@ -26,6 +32,16 @@
 	
 	#ifndef min
 		#define min(a,b) (a) < (b) ? (a) : (b)
+	#endif
+	
+	#if 1
+		#define SET_PIN0(pin) gpio_put(pin, 0)
+		#define SET_PIN1(pin) gpio_put(pin, 1)
+		#define SET_PINT(pin) sio_hw->gpio_togl = (1 << pin)
+	#else
+		#define SET_PIN0(pin)
+		#define SET_PIN1(pin)
+		#define SET_PINT(pin)
 	#endif
 	
 	

@@ -43,7 +43,7 @@ It can be changed to any sample rate (in Hertz) supported by the codec.
 
 As a demonstration, the project uses all 10 audio outputs to generate independent sine waves. The frequencies are specified in the `gen_freq[10]` array. For the 192 kHz mode, the frequencies for channels 0 through 7 follow a geometric progression with a multiplier of 1.5—ranging from 880 Hz (0.004583333333 × 192,000) to 15,035.6 Hz—while the frequencies for channels 8 and 9 are 63,936 Hz and 76,800 Hz, respectively.
 
-Data received from the ADC is not utilized.
+Data received from the ADC is used to control the LED: if a signal is present on any input, the LED flashes; otherwise, it stays on continuously.
 
 ## How it works
 

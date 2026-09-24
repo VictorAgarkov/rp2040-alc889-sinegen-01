@@ -19,10 +19,6 @@
 	#define DMA_TXBUFF_1ST_IDX 0
 	#define DMA_RXBUFF_1ST_IDX 4
 	
-	#define DMA_DBGPIN1 0
-	#define DMA_DBGPIN2 1
-	#define DMA_DBGPIN3 2
-	
 
 	int  hdal_codec_reset(void);
 	void hdal_dma_init(void);

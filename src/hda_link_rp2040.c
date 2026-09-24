@@ -253,7 +253,7 @@ dma_channel_hw_t * hdal_setup_DMA_rx(PIO pio, uint sm, int dma_chn, int dma_chn_
 __attribute__((noinline, section(".scratch_x.rb32_functions")))
 void dma_irq1_handler(void)
 {
-	gpio_put(DMA_DBGPIN1, 1);
+	SET_PIN1(DBGPIN1);
 	int half = -1;
 
 	// находим, канал, который нас вызвал, и обрабатываем его
@@ -274,28 +274,28 @@ void dma_irq1_handler(void)
 	// передачи и разгребаем принятое
 	if(half >= 0)
 	{
-		//gpio_put(DMA_DBGPIN2, 1);
+		SET_PIN1(DBGPIN2);
 		hdal_update_TX_buff(half);
-		//gpio_put(DMA_DBGPIN2, 0);
+		SET_PIN0(DBGPIN2);
 
-		gpio_put(DMA_DBGPIN3, 1);
+		SET_PIN1(DBGPIN3);
 		hdal_update_RX_buff(half);
-		gpio_put(DMA_DBGPIN3, 0);
+		SET_PIN0(DBGPIN3);
 
 	}
 
 	// увеличиваем счётчик фреймов
 	g_HDA_frame_count++;
 
-	gpio_put(DMA_DBGPIN1, 0);
+	SET_PIN0(DBGPIN1);
 
 //	if(!half)
 //	{
 //		// для второй половины делаем двойной импульс
 //		asm volatile ("nop\n nop\n nop\n nop\n");
-//		gpio_put(DMA_DBGPIN1, 1);
+//		SET_PIN1(DBGPIN1);
 //		asm volatile ("nop\n nop\n nop\n nop\n");
-//		gpio_put(DMA_DBGPIN1, 0);
+//		SET_PIN0(DBGPIN1);
 //	}
 }
 //------------------------------------------------------------------------------------------------------------------------------------------------
@@ -445,9 +445,6 @@ void hdal_update_RX_buff(int half)
 			bit += bytes_len * 8;
 			stream_cnt++;
 		}
-
-		
-		
 	#else
 		#if   (HDA_ADC_BITS_PER_SAMPLE == HDA_BPS_24)
 			if      (codec_mic_SBM->mul == 1) stream_cnt = sdi_extract_24bit_1x(dst, data_p);
@@ -465,6 +462,7 @@ void hdal_update_RX_buff(int half)
 	#endif
 	
 	g_InputStreamNum = stream_cnt;
+	
 	if(stream_cnt & 0xff)
 	{
 		g_SamplesInBuff32_half = samples_half ^ 1;
