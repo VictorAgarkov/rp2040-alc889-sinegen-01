@@ -31,8 +31,8 @@ dma_channel_hw_t *p_DMA_HW_tx_sync[2];
 dma_channel_hw_t *p_DMA_HW_rx_data[2];
 
 PIO HDA_pio = pio0;
-uint mask_fsm_sync = 0;  // маска - какие SM будем запускать одновременно
-uint fsm_CAD;
+uint mask_sm_sync = 0;  // маска - какие SM будем запускать одновременно
+uint sm_CAD;
 volatile uint32_t g_HDA_frame_count   = 0;
 
 extern int g_HDA_init_state;
@@ -87,7 +87,7 @@ int hdal_codec_reset(void)
 			case 202: loop_en = 0; break;  // (+4ms) timeout - exit loop
 			default :
 				// ждём от SM признака, что кодек запросил свой адрес и он был назначен
-				if(pio_sm_get_rx_fifo_level(HDA_pio, fsm_CAD))
+				if(pio_sm_get_rx_fifo_level(HDA_pio, sm_CAD))
 				{
 					g_CodecAddressRequested = 1;
 					loop_en = 0;
@@ -110,39 +110,39 @@ void hdal_dma_init(void)
 	*****************************************/
 	
 
-	// настраиваем 2 копии out_1000bit_program на 2 FSM
-	uint fsm_1000[2];
+	// настраиваем 2 копии out_1000bit_program на 2 sm
+	uint sm_1000[2];
 	uint data_pin1000[2] = {PIN_HDA_DOUT, PIN_HDA_SYNC}; // 6, 7
 
 	uint offset_1000 = pio_add_program(HDA_pio, &out_1000bit_program);
 	for(int i = 0; i < 2; i++)
 	{
-		fsm_1000[i] = pio_claim_unused_sm(HDA_pio, true);
-		// out_1000bit_program_init(HDA_pio, fsm_1000[i], offset_1000, clk_pin1000[i], data_pin1000[i]);
-		out_1000bit_program_init(HDA_pio, fsm_1000[i], offset_1000, data_pin1000[i]);
+		sm_1000[i] = pio_claim_unused_sm(HDA_pio, true);
+		// out_1000bit_program_init(HDA_pio, sm_1000[i], offset_1000, clk_pin1000[i], data_pin1000[i]);
+		out_1000bit_program_init(HDA_pio, sm_1000[i], offset_1000, data_pin1000[i]);
 		// длину задаём L = 1000 / 2 - 2 = 248, её передаём в fifo
-		//pio_sm_put_blocking(pio, fsm_1000[i], (32+20) / 2 - 2);
-		pio_sm_put_blocking(HDA_pio, fsm_1000[i], (1000) / 2 - 2);
-		mask_fsm_sync |= 1 << fsm_1000[i];
+		//pio_sm_put_blocking(pio, sm_1000[i], (32+20) / 2 - 2);
+		pio_sm_put_blocking(HDA_pio, sm_1000[i], (1000) / 2 - 2);
+		mask_sm_sync |= 1 << sm_1000[i];
 	}
 
 	// настраиваем 1 копию in_500bit
-	uint fsm_500;
+	uint sm_500;
 	uint offset_500 = pio_add_program(HDA_pio, &in_500bit_program);
-	fsm_500 = pio_claim_unused_sm(HDA_pio, true);
-	in_500bit_program_init(HDA_pio, fsm_500, offset_500);
-	pio_sm_put_blocking(HDA_pio, fsm_500, 500  - 2);
-	mask_fsm_sync |= 1 << fsm_500;
+	sm_500 = pio_claim_unused_sm(HDA_pio, true);
+	in_500bit_program_init(HDA_pio, sm_500, offset_500);
+	pio_sm_put_blocking(HDA_pio, sm_500, 500  - 2);
+	mask_sm_sync |= 1 << sm_500;
 
 	// настраиваем програму codec_address
 	uint offset_CAD = pio_add_program(HDA_pio, &codec_address_program);
-	fsm_CAD    = pio_claim_unused_sm(HDA_pio, true);
-	codec_address_program_init(HDA_pio, fsm_CAD, offset_CAD);
+	sm_CAD    = pio_claim_unused_sm(HDA_pio, true);
+	codec_address_program_init(HDA_pio, sm_CAD, offset_CAD);
 	// 3953 @ 4,    2963 @ 3
-	pio_sm_put_blocking(HDA_pio, fsm_CAD, LINK_BCLK_LEN * (1000 - 10) - 7);
-	mask_fsm_sync |= 1 << fsm_CAD;
+	pio_sm_put_blocking(HDA_pio, sm_CAD, LINK_BCLK_LEN * (1000 - 10) - 7);
+	mask_sm_sync |= 1 << sm_CAD;
 
-	//sprintf(str, "PIO SM: TX_1000={%i, %i}, RX_500=%i, CAD=%i"CRLF, fsm_1000[0], fsm_1000[1], fsm_500, fsm_CAD);
+	//sprintf(str, "PIO SM: TX_1000={%i, %i}, RX_500=%i, CAD=%i"CRLF, sm_1000[0], sm_1000[1], sm_500, sm_CAD);
 	//uartputs(str);
 
 
@@ -167,9 +167,9 @@ void hdal_dma_init(void)
 		int chn_tx_sync = chn_tx_data + 2;
 		int chn_rx_data = DMA_RXBUFF_1ST_IDX + i;
 
-		p_DMA_HW_tx_data[i] = hdal_setup_DMA_tx(HDA_pio, fsm_1000[0], chn_tx_data, chn_tx_data^1, dmatx_dout_p[i],          32);
-		p_DMA_HW_tx_sync[i] = hdal_setup_DMA_tx(HDA_pio, fsm_1000[1], chn_tx_sync, chn_tx_sync^1, HDA_sync_buff_actual,     32);
-		p_DMA_HW_rx_data[i] = hdal_setup_DMA_rx(HDA_pio, fsm_500,     chn_rx_data, chn_rx_data^1, dmarx_din_p[i],           16);
+		p_DMA_HW_tx_data[i] = hdal_setup_DMA_tx(HDA_pio, sm_1000[0], chn_tx_data, chn_tx_data^1, dmatx_dout_p[i],          32);
+		p_DMA_HW_tx_sync[i] = hdal_setup_DMA_tx(HDA_pio, sm_1000[1], chn_tx_sync, chn_tx_sync^1, HDA_sync_buff_actual,     32);
+		p_DMA_HW_rx_data[i] = hdal_setup_DMA_rx(HDA_pio, sm_500,     chn_rx_data, chn_rx_data^1, dmarx_din_p[i],           16);
 	}
 
 	// set high priority to DMA
@@ -177,10 +177,20 @@ void hdal_dma_init(void)
 	
 }
 //------------------------------------------------------------------------------------------------------------------------------------------------
+void hdal_release_sm_CAD(void)
+{
+	// Release unused SM
+	pio_sm_set_enabled    (HDA_pio, sm_CAD, false);
+	pio_sm_drain_tx_fifo  (HDA_pio, sm_CAD);
+	pio_sm_restart        (HDA_pio, sm_CAD);
+	pio_sm_clkdiv_restart (HDA_pio, sm_CAD);
+	pio_sm_unclaim        (HDA_pio, sm_CAD);
+}
+//------------------------------------------------------------------------------------------------------------------------------------------------
 void hdal_dma_start(void)
 {
 	dma_start_channel_mask((1 << (DMA_TXBUFF_1ST_IDX + 0)) | (1 << (DMA_TXBUFF_1ST_IDX + 2)) | (1 << (DMA_RXBUFF_1ST_IDX + 0)) | 0);
-	pio_set_sm_mask_enabled(HDA_pio, mask_fsm_sync, 1); // запускаем все машины одновременно (начинается генерация BCLK)
+	pio_set_sm_mask_enabled(HDA_pio, mask_sm_sync, 1); // запускаем все машины одновременно (начинается генерация BCLK)
 }
 //------------------------------------------------------------------------------------------------------------------------------------------------
 dma_channel_hw_t * hdal_setup_DMA_tx(PIO pio, uint sm, int dma_chn, int dma_chn_next, void *buff, uint buff_size)

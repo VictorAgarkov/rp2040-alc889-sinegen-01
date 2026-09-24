@@ -27,6 +27,7 @@
 	int  hdal_codec_reset(void);
 	void hdal_dma_init(void);
 	void hdal_dma_start(void);
+	void hdal_release_sm_CAD(void);
 	
 	dma_channel_hw_t * hdal_setup_DMA_tx(PIO pio, uint sm, int dma_chn, int dma_chn_next, void *buff, uint buff_size);
 	dma_channel_hw_t * hdal_setup_DMA_rx(PIO pio, uint sm, int dma_chn, int dma_chn_next, void *buff, uint buff_size);
@@ -44,7 +45,7 @@
 	void hdal_enable_hda_dma_irq(void);
 	
 	extern PIO HDA_pio;
-	extern uint fsm_CAD;
+	extern uint sm_CAD;
 	
 	extern void *dmatx_dout_p[2];
 	extern void *dmarx_din_p [2];

@@ -424,12 +424,14 @@ int main()
 	uartputs("<");
 	hda_init();
 	uartputs(">"CRLF);
-	//uartputs("codec init complete"CRLF);
+
+	hdal_release_sm_CAD(); // release unused SM
 
 	// пересоздаём буфер SYNC сигнала с учётом номеров и размеров аудиопоков ЦАП
 	int DAC_stream_count = HDA_SINGLE_STREAM ? 1 : codec.path_DAC_conv_count;
 	hdal_update_HDA_TX_buff(HDA_sync_buff_actual,  codec.stream_DAC_start, DAC_stream_count, 6 * codec_spk_SBM->mul);
 	hdal_update_dma_tx_param_by_spk_sbm();
+
 
 
 

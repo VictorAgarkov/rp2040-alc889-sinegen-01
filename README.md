@@ -14,7 +14,7 @@ The SMs are utilized as follows:
 | 2  | **DIN** input, and **BCLK** and "start-of-frame" (SoF) outputs |
 | 3  | detection of the codec's address request and address assignment|
 
-After the codec address request and assignment phase completes (upon return from the `hdal_codec_reset()` function), **SM3** can be stopped and used for other purposes.
+After the codec address request and assignment phase completes (upon return from the `hdal_codec_reset()` function), **SM3** can be stopped with `hdal_release_sm_CAD()` and used for other purposes.
 
 **RP2040 pin assignments:**
 | RP2040 Pin | Signal      | ALC889 Pin | Note  |
@@ -91,7 +91,7 @@ if(g_SamplesInBuff32_ready)
 }
 ```
 
-Clone and build:
+## Clone and build:
 
 ```bash
 git clone https://github.com/VictorAgarkov/rp2040-alc889-sinegen-01
