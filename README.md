@@ -88,6 +88,7 @@ if(g_SamplesInBuff32_ready)
 	// Process the data received from the ADC here
 	int32_t *src = (int32_t*)g_SamplesInBuff32_ready;
 	g_SamplesInBuff32_ready = NULL;
+	analize_ADC_samples(src);	
 }
 ```
 
