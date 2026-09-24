@@ -457,21 +457,21 @@ int main()
 	{
 		int32_t current_time_ms = to_ms_since_boot(get_absolute_time());
 
-		if(g_SamplesOutBuff32_half_empty >= 0)
+		if(g_SamplesOutBuff32_empty)
 		{
-			// буфер ЦАП пуст - что-то делаем
-			int32_t *p32 = g_SamplesOutBuff32 + ARRAYSIZE(g_SamplesOutBuff32) / 2 * g_SamplesOutBuff32_half_empty;
+			// буфер ЦАП пуст - готовим очередную порцию семплов
+			int32_t *dst = (int32_t*)g_SamplesOutBuff32_empty;
+			g_SamplesOutBuff32_empty = NULL;
 
 			// генерим выход
-			make_next_sine(p32);   // сферический синус в вакууме 
-
-			g_SamplesOutBuff32_half_empty = -1;
+			make_next_sine(dst); 
 		}
 		
-		if(g_InputStreamReady)
+		if(g_SamplesInBuff32_ready)
 		{
 			// здесь нужно обработать принятые от АЦП данные
-			g_InputStreamReady = 0;
+			int32_t *src = (int32_t*)g_SamplesInBuff32_ready;
+			g_SamplesInBuff32_ready = NULL;
 		}
 
 

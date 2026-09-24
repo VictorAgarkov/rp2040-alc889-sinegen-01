@@ -9,6 +9,7 @@
 #define CODEC_H_INCLUDED
 
 	#include <stdint.h>
+	#include "config.h"
 
 	#define HDA_CODEC_ADDRESS             0
 	#define HDA_MAX_SAMPLES_PER_FRAME     4    // 1 = 48kHz, 2 = 96kHz, 4 = 192kHz

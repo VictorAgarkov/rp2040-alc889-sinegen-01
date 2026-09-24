@@ -47,49 +47,49 @@ Data received from the ADC is not utilized.
 
 ## How it works
 
-Data exchange between the PIO and the microcontroller's RAM occurs via several DMA channels. Two DMA channels are allocated for each line (SDIN, SDOUT, and SYNC) to implement a double-buffering scheme (often referred to as "ping-pong" buffering). A total of 6 DMA channels are used.
+Data exchange between the PIO and the microcontroller's RAM is handled via multiple DMA channels. Two DMA channels are allocated for each line (SDIN, SDOUT, and SYNC) to support double buffering (often referred to as "ping-pong" buffering), resulting in a total of six DMA channels.
 
-Audio data received from the ADC via the SDIN line is stored in the `HDA_din_buff` double buffer; it is then unpacked in software into a set of 32-bit samples within the `g_SamplesInBuff32` single buffer. Upon successful unpacking, the global variable `g_InputStreamReady` is set to a non-zero value, which should be monitored in the main loop. Once this value is detected, the data received from the ADC can be processed.
+Audio data received from the ADC via the SDIN line enters the `HDA_din_buff` double buffer; it is then unpacked in software into a set of 32-bit samples stored in the `g_SamplesInBuff32` double buffer. Upon successful unpacking, the global pointer `g_SamplesInBuff32_ready` is set to a non-zero value indicating the start of the data chunk—a value that must be monitored within the main loop. Once this value is detected, the data received from the ADC can be processed, and the pointer itself is reset to zero.
 
-To handle audio data for DAC output, the state of the `g_SamplesOutBuff32_half_empty` variable must be monitored. Once it takes on a non-negative value, the 32-bit DAC samples must be placed into one of the halves of the `g_SamplesOutBuff32` buffer (the first half if `g_SamplesOutBuff32_half_empty` is 0, or the second if it is 1), and the `g_SamplesOutBuff32_half_empty` variable must be reset (or rather, set to -1). Subsequently, in the next frame, the data is packed via software into the `HDA_dout_buff` double buffer and transmitted externally.
+To handle audio data for DAC output, the state of the `g_SamplesOutBuff32_empty` pointer must be monitored; this pointer is either NULL or points to a section of the `g_SamplesOutBuff32` buffer. When it takes on a non-zero value, the 32-bit DAC samples must be written to that address, and the pointer reset to zero. In the subsequent frame, the data is packed in software into the `HDA_dout_buff` double buffer and transmitted externally.
 
-Two separate buffers—`HDA_sync_buff_actual` and `HDA_sync_buff_empty`—are used for SYNC output. Their contents are updated during initialization and remain static during normal operation. The `HDA_sync_buff_actual` buffer holds information regarding the audio streams (stream IDs and start times) for the codec. The `HDA_sync_buff_empty` buffer contains an "empty" signal (devoid of audio stream information) and is used to insert empty frames when operating at sample rates that are multiples of 44.1 kHz.
+All 32-bit sample values ​​are signed (int32_t) and left-aligned. The least significant 8 or 16 bits (depending on the codec mode) are either discarded (for DAC output) or padded with zeros (for ADC input).
 
-Software-based handling of DMA interrupts—including the packing and unpacking of audio data—is performed on core #1, thereby freeing up resources on the primary core (#0) for signal processing tasks. 
+Two separate buffers—`HDA_sync_buff_actual` and `HDA_sync_buff_empty`—are used for SYNC output. Their contents are updated during initialization and remain static during normal operation. The `HDA_sync_buff_actual` buffer holds information about audio streams (their IDs and start times) for the codec. The `HDA_sync_buff_empty` buffer contains an "empty" signal (devoid of audio stream data) and is used to insert empty frames when operating at sample rates that are multiples of 44.1 kHz.
+
+Software-based DMA interrupt processing—including the packing and unpacking of audio data—is handled by core #1, leaving the resources of the primary core (#0) available for signal processing tasks.
 
 ## Usage
 
-First, determine the number of DAC and ADC channels and the sampling rate, then set the appropriate values ​​in **config.h**:
+First, determine the number of DAC and ADC channels and the sample rate, then set the appropriate values ​​in **config.h**:
 ```c
 #define HDA_DAC_NUM    5      // number of stereo DACs
 #define HDA_ADC_NUM    3      // number of stereo ADCs
 #define HDA_SAMPLERATE 192000 // working sample rate
 ```
-To output signals to the DAC: periodically poll the `g_SamplesOutBuff32_half_empty` variable in the main loop; if it is non-negative, prepare the next batch (frame) of audio data:
+To output signals to the DAC: periodically poll the `g_SamplesOutBuff32_empty` variable within the main loop; if it is not NULL, prepare the next batch (frame) of audio data:
 
 ```c
-if(g_SamplesOutBuff32_half_empty >= 0)
+if(g_SamplesOutBuff32_empty)
 {
-	// calculate which buffer half needs the fresh audio data
-	int32_t *p32 = g_SamplesOutBuff32 + ARRAYSIZE(g_SamplesOutBuff32) / 2 * g_SamplesOutBuff32_half_empty; 
+	// буфер ЦАП пуст - готовим очередную порцию семплов
+	int32_t *dst = (int32_t*)g_SamplesOutBuff32_empty;
+	g_SamplesOutBuff32_empty = NULL;
 
-	// generate output
-	make_next_sine(p32); 
-
-	g_SamplesOutBuff32_half_empty = -1;
+	// генерим выход
+	make_next_sine(dst); 
 }
 ```
-To receive signals from the ADC: poll the `g_InputStreamReady` variable, and once it becomes non-zero, process the received data:
+To receive the signal from the ADC: poll the variable `g_SamplesInBuff32_ready`, and as soon as it becomes non-zero, process the received data.
 
 ```c
-if(g_InputStreamReady)
+if(g_SamplesInBuff32_ready)
 {
-	make_something_with_ADC_samples(g_SamplesInBuff32); 
-	g_InputStreamReady = 0;
+	// здесь нужно обработать принятые от АЦП данные
+	int32_t *src = (int32_t*)g_SamplesInBuff32_ready;
+	g_SamplesInBuff32_ready = NULL;
 }
 ```
-## Build from source
-Building from source follows the same procedure as for most RP2040 projects.
 
 Clone and build:
 

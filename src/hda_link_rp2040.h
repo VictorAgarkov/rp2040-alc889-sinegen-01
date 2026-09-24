@@ -56,12 +56,14 @@
 	extern uint32_t          HDA_dout_buff_empty [32];
 	extern volatile uint32_t g_HDA_frame_count;
 
-	extern int32_t           g_SamplesInBuff32 [HDA_MAX_SAMPLES_PER_FRAME * 2 * HDA_ADC_NUM];
+	extern volatile int32_t  g_SamplesInBuff32 [HDA_MAX_SAMPLES_PER_FRAME * 2 * HDA_ADC_NUM * 2];
 	extern int32_t           g_SamplesOutBuff32[HDA_MAX_SAMPLES_PER_FRAME * 2 * HDA_DAC_NUM * 2];
 						     
-	extern volatile int      g_InputStreamReady;
+	extern int32_t* volatile g_SamplesOutBuff32_empty;  // какую часть буфера нужно заполнить свежими сеплами
+
 	extern volatile int      g_InputStreamNum;
-	extern volatile int      g_SamplesOutBuff32_half_empty;  // какую половину буфера семплов SPK надо заполнить
+	extern int32_t* volatile g_SamplesInBuff32_ready;    // какую часть буфера микрофона можно обрабатывать
+
 						     
 	extern rb32_t            queue_verb; 
 	extern rb32_t            queue_resp; 

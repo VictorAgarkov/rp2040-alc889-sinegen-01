@@ -51,18 +51,19 @@ RB32_ITEM(queue_verb  __attribute__((section(".scratch_x.my_buffers"))), arr_ver
 RB32_ITEM(queue_resp  __attribute__((section(".scratch_x.my_buffers"))), arr_resp);
 RB32_ITEM(queue_unsol __attribute__((section(".scratch_x.my_buffers"))), arr_unsol);
 
-int32_t g_SamplesInBuff32 [HDA_MAX_SAMPLES_PER_FRAME * 2 * HDA_ADC_NUM];
+volatile int32_t  g_SamplesInBuff32 [HDA_MAX_SAMPLES_PER_FRAME * 2 * HDA_ADC_NUM * 2];
+volatile int      g_SamplesInBuff32_half = 0;   // с какой половиной буфера семплов будем работать
+int32_t* volatile g_SamplesInBuff32_ready = NULL; // какую часть буфера микрофона можно обрабатывать
+volatile int      g_InputStreamNum;      // сколько входных потоков было выделено из потока SDI
 
-int32_t      g_SamplesOutBuff32[HDA_MAX_SAMPLES_PER_FRAME * 2 * HDA_DAC_NUM * 2];
-volatile int g_SamplesOutBuff_half = 0;          // с какой половиной буфера семплов будем работать
-volatile int g_SamplesOutBuff32_half_empty = -1;  // какую половину буфера семплов SPK надо заполнить
-volatile int g_pass147_acc = 159;                // накопитель до 160, для режимов 44.1кГц будем отдавать 147 кадров из 160
-volatile int g_pass147_add = 0;                  // сколько будем добавлять к накопителю - 147 или 160
+int32_t           g_SamplesOutBuff32[HDA_MAX_SAMPLES_PER_FRAME * 2 * HDA_DAC_NUM * 2];
+volatile int      g_SamplesOutBuff32_half = 0;      
+int32_t* volatile g_SamplesOutBuff32_empty = NULL;    // какую часть буфера нужно заполнить свежими сеплами
+
+volatile int      g_pass147_acc = 159;                // накопитель до 160, для режимов 44.1кГц будем отдавать 147 кадров из 160
+volatile int      g_pass147_add = 0;                  // сколько будем добавлять к накопителю - 147 или 160
 
 static p_sdo_pack_24_proc current_sdo_pack_24_proc = NULL; // процедура упаковки 32-семплов + verb в 24-бит для передачи по HDA-Link
-
-volatile int  g_InputStreamNum;      // сколько входных потоков было выделено из потока SDI
-volatile int  g_InputStreamReady;
 
 int g_CodecAddressRequested = 0; // устанавливаем в 1, если кодек при инициализации заспросил и получил адрес
 
@@ -345,8 +346,8 @@ void hdal_update_TX_buff(int half)
 	// собираем буфер для отправки
 	uint32_t verb32 = 0;
 	rb32_try_get(&queue_verb, &verb32);
-	int SamplesOutBuff_half = g_SamplesOutBuff_half;
-	uint32_t *src = g_SamplesOutBuff32 + ARRAYSIZE(g_SamplesOutBuff32) / 2 * SamplesOutBuff_half;
+	int buff_half = g_SamplesOutBuff32_half;
+	uint32_t *src = g_SamplesOutBuff32 + ARRAYSIZE(g_SamplesOutBuff32) / 2 * buff_half;
 
 	uint32_t *p_dma_data, *p_dma_sync;
 
@@ -366,8 +367,8 @@ void hdal_update_TX_buff(int half)
 		// пакуем данные и verb для передачи по HDA link
 		if(current_sdo_pack_24_proc) current_sdo_pack_24_proc(verb32, p_dma_data, src);
 
-		g_SamplesOutBuff32_half_empty = SamplesOutBuff_half;      // говорим main, что можно обновить использованную половину программного буфера
-		g_SamplesOutBuff_half        = SamplesOutBuff_half ^ 1;  // переключаемся на другую половинку качелей программного буфера
+		g_SamplesOutBuff32_empty = src; // говорим main, что можно обновить использованную половину программного буфера
+		g_SamplesOutBuff32_half    = buff_half ^ 1;  // переключаемся на другую половинку качелей программного буфера
 	}
 	else
 	{
@@ -403,13 +404,15 @@ void hdal_update_RX_buff(int half)
 		if ((data_p[0] &0x40000000) == 0)  resp_cnt++;
 	}
 
-	int32_t *dst = g_SamplesInBuff32;
+	int samples_half = g_SamplesInBuff32_half; 
+	int32_t *dst = (int32_t*)g_SamplesInBuff32 + ARRAYSIZE(g_SamplesInBuff32) / 2 * samples_half;
+	
 
 	// разгребаем аудиоданные
-	//g_InputStreamTags  g_InputStreamNum
+	int stream_cnt = 0;
 	#if 0 // 1 - универсальный медленный разгребатель, 0 - на выбор узкоспециализированный рагребатель
 		int bit = 36;
-		int stream_cnt = 0;
+		
 		int bit_p_sample = adc_bits_per_sample[HDA_ADC_BITS_PER_SAMPLE];
 		int dst_offset = 0;
 		for(;;)
@@ -433,25 +436,30 @@ void hdal_update_RX_buff(int half)
 			stream_cnt++;
 		}
 
-		g_InputStreamNum = stream_cnt;
+		
+		
 	#else
 		#if   (HDA_ADC_BITS_PER_SAMPLE == HDA_BPS_24)
-			if      (codec_mic_SBM->mul == 1) g_InputStreamNum = sdi_extract_24bit_1x(dst, data_p);
-			else if (codec_mic_SBM->mul == 2) g_InputStreamNum = sdi_extract_24bit_2x(dst, data_p);
-			else if (codec_mic_SBM->mul == 4) g_InputStreamNum = sdi_extract_24bit_4x(dst, data_p);
-			else                            g_InputStreamNum = HDABUF_WRONG_SPF; //0x80000000
+			if      (codec_mic_SBM->mul == 1) stream_cnt = sdi_extract_24bit_1x(dst, data_p);
+			else if (codec_mic_SBM->mul == 2) stream_cnt = sdi_extract_24bit_2x(dst, data_p);
+			else if (codec_mic_SBM->mul == 4) stream_cnt = sdi_extract_24bit_4x(dst, data_p);
+			else                              stream_cnt = HDABUF_WRONG_SPF; //0x80000000
 		#elif (HDA_ADC_BITS_PER_SAMPLE == HDA_BPS_16)
-			if      (codec_mic_SBM->mul == 1) g_InputStreamNum = sdi_extract_16bit_1x(dst, data_p);
-			else if (codec_mic_SBM->mul == 2) g_InputStreamNum = sdi_extract_16bit_2x(dst, data_p);
-			else if (codec_mic_SBM->mul == 4) g_InputStreamNum = sdi_extract_16bit_4x(dst, data_p);
-			else                            g_InputStreamNum = HDABUF_WRONG_SPF; //0x80000000
+			if      (codec_mic_SBM->mul == 1) stream_cnt = sdi_extract_16bit_1x(dst, data_p);
+			else if (codec_mic_SBM->mul == 2) stream_cnt = sdi_extract_16bit_2x(dst, data_p);
+			else if (codec_mic_SBM->mul == 4) stream_cnt = sdi_extract_16bit_4x(dst, data_p);
+			else                              stream_cnt = HDABUF_WRONG_SPF; //0x80000000
 		#else
 			#error "HDA_ADC_BITS_PER_SAMPLE may be HDA_BPS_16 or HDA_BPS_24"
 		#endif
 	#endif
-
-	g_InputStreamReady = (g_InputStreamNum & 7) != 0;
-
+	
+	g_InputStreamNum = stream_cnt;
+	if(stream_cnt & 0xff)
+	{
+		g_SamplesInBuff32_half = samples_half ^ 1;
+		g_SamplesInBuff32_ready = dst;
+	}
 }
 //------------------------------------------------------------------------------------------------------------------------------------------------
 void hdal_update_HDA_TX_buff(uint32_t *dst32, int start_stream, int stream_num, int bytes_per_stream)
@@ -468,7 +476,6 @@ void hdal_update_HDA_TX_buff(uint32_t *dst32, int start_stream, int stream_num, 
 		sync_p8[offs ^ 3] = 0xe0 | start_stream++;
 		offs += bytes_per_stream;
 	}
-
 }
 //------------------------------------------------------------------------------------------------------------------------------------------------
 void hdal_update_dma_tx_param_by_spk_sbm(void)
@@ -480,7 +487,7 @@ void hdal_update_dma_tx_param_by_spk_sbm(void)
 	unsigned int idx = sbm->mul - 1;
 	if(idx < ARRAYSIZE(sdo_pack_24_procs))
 	{
-		// _x1, _x1 or _x4
+		// _x1, _x2 or _x4
 		current_sdo_pack_24_proc = sdo_pack_24_procs[idx];	
 	}
 }
@@ -489,12 +496,11 @@ void hdal_update_dma_tx_param_by_spk_sbm(void)
 // Вызывать нужно из того ядра, ктоторе будет их обрабатывать
 void hdal_enable_hda_dma_irq(void)
 {
+	int dma_irq = DMA_IRQ_1;
 	// Регистрируем обработчики в NVIC процессора
-	//irq_set_exclusive_handler(DMA_IRQ_0, dma_irq0_handler);
-	irq_set_exclusive_handler(DMA_IRQ_1, dma_irq1_handler);
+	irq_set_exclusive_handler(dma_irq, dma_irq1_handler);
 
 	// Включаем прерывания
-	//irq_set_enabled(DMA_IRQ_0, true);
-	irq_set_enabled(DMA_IRQ_1, true);
+	irq_set_enabled(dma_irq, true);
 }
 //------------------------------------------------------------------------------------------------------------------------------------------------
