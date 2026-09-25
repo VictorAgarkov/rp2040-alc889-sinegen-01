@@ -17,6 +17,7 @@ add_executable(${PROJECT_NAME}
 	src/hda_link_rp2040.c
 	src/data_pack.c
 	src/get_sine_approx_1025_0_q1.c  # быстрый синус
+	#src/get_sine_approx_4097_0_q1.c  # быстрый синус
 )
 
 # Подключение заголовочных файлов

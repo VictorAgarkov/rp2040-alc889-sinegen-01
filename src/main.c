@@ -33,7 +33,7 @@ uint32_t sine_freq = 1222.2 / 48000 * 0x100000000ULL;
 uint32_t sine_phase = 0;
 
 // Прототип функции из шаблона
-int32_t get_sine_int32(uint32_t angle);
+int32_t get_sine32_linear(uint32_t angle);
 void uart_routine(void);
 void unsolicided_routine(void);
 
@@ -353,7 +353,7 @@ void make_next_sine(int32_t * dst)
 				int gen_idx = dac * 2 + rl;
 
 				gen_phase[gen_idx] += gen_freq[gen_idx];  // different frequency for each channel
-				v32 = get_sine_int32(gen_phase[gen_idx]);
+				v32 = get_sine32_linear(gen_phase[gen_idx]);
 
 				*(dst++) = v32;
 			}
@@ -460,9 +460,6 @@ int main()
 	int DAC_stream_count = HDA_SINGLE_STREAM ? 1 : codec.path_DAC_conv_count;
 	hdal_update_HDA_TX_buff(HDA_sync_buff_actual,  codec.stream_DAC_start, DAC_stream_count, 6 * codec_spk_SBM->mul);
 	hdal_update_dma_tx_param_by_spk_sbm();
-
-
-
 
 	/*****************************************
 	                 audio init

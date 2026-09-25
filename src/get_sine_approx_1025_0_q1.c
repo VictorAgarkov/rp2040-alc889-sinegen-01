@@ -167,7 +167,9 @@ __not_in_flash("sine_table") const int32_t sine_approx_1025_0_q1[(1 << SINE_QTAB
 	Уровень гармоник с интерполяцией заметно ниже (-126dB), чем без неё
 */
 
-int32_t get_sine_int32(uint32_t angle)
+#define FRACTION_MUL_BIT 10
+
+int32_t get_sine32_linear(uint32_t angle)
 {
 	int neg = 0;
 	if(angle & 0x80000000)
@@ -176,26 +178,26 @@ int32_t get_sine_int32(uint32_t angle)
 		neg = 1;
 		angle &= 0x7fffffff;
 	}
-	
+
 	// переводим в 1-й квадрант
 	if(angle > 0x40000000) angle = 0x80000000 - angle;
-	
+
 	// angle теперь в диапазоне 0 .. 0x40000000 (30 бит)
-	
+
 	int idx = angle >> (30 - SINE_QTABLE_POW); // idx = 0..1024
 	int32_t ret;
-	
+
 	if(idx == (1 << SINE_QTABLE_POW)) ret = sine_approx_1025_0_q1[idx]; // строго 90 градусов
 	else
 	{
 		ret = sine_approx_1025_0_q1[idx];
 		uint32_t dy = sine_approx_1025_0_q1[idx + 1] - ret;
 		// dy будет максимум 0x003243F5 при таблице 1025, т.е. 22 младших бита
-		uint32_t mul = angle << (2 + SINE_QTABLE_POW) >> (32 - 9); // дробная часть угла 9 бит
-		ret += (dy * mul) >> 9; //после умножения нормализуем на эти 9 бит дробной части угла		
+		uint32_t mul = angle << (2 + SINE_QTABLE_POW) >> (32 - FRACTION_MUL_BIT); // дробная часть угла 10 бит
+		ret += (dy * mul) >> FRACTION_MUL_BIT; //после умножения нормализуем на эти 10 бит дробной части угла
 	}
-	
+
 	return neg ? -ret : ret;
-	
+
 }
 //-----------------------------------------------------------------------------------------------------------------
