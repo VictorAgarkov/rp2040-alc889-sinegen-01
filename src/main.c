@@ -149,7 +149,7 @@ void core1_routine(void)
 		{
 			last_fdebug_err = fdb;
 			HDA_pio->fdebug = fdb; // reset errors
-			uartputs("DeSYNC"CRLF);
+			uartputs("DeSYNC (fdebug)"CRLF);
 		}
 
 		uint32_t flevel = HDA_pio->flevel;
@@ -160,11 +160,12 @@ void core1_routine(void)
 		SET_PINT(DBGPIN4);
 		//__wfi();
 	}
-
 }
 //------------------------------------------------------------------------------------------------------------------------------------------------
-// сюда мы попадаем, когда например срабатывает
-// jack sense у нод, где это разрешено
+// сюда мы попадаем, когда например срабатывает jack sense у нод, где это разрешено.
+// Приходят отклики примерно такого значения: 0x1c000020
+// биты 29:26 - тег, который был разрешен ноде командой 0x708 (set unsolicited response control)
+// биты  7:0  - состояние всех контактов jack sense
 void unsolicided_routine(void)
 {
 	uint32_t unsol;
