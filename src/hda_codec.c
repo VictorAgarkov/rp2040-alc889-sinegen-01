@@ -14,9 +14,9 @@
 
 #define PRINT_EN 0x00 //(4 | 8)
 
+#include "hardware/uart.h"
 
 #if (PRINT_EN)
-	#include "hardware/uart.h"
 	
 	extern char str[256];
 	
@@ -158,10 +158,10 @@ codec_capabilities_t codec;
 uint8_t g_conn_list[160]; // global connection list
 
 
-void     verb_to_queue(uint32_t verb32);
+
 uint32_t wait_codec_resp(void);
 void hdac_print_codec_capabilities(void);
-void hdal_wait_queues_emty(void);
+
 
 int print_verb_en = 0;
 int pin_unsol_count = 0;  // счётчик нод, которе могут отправлять unsolicited response
@@ -179,7 +179,7 @@ void hdac_init_startcount(int start_adc, int start_dac)
 	memset(&codec, 0, sizeof(codec));
 	codec.stream_DAC_start = start_dac;
 	codec.stream_ADC_start = start_adc;
-
+	
 	hdac_read_codec_property();
 	hdac_print_codec_capabilities();
 	hdac_codec_start();
@@ -268,8 +268,6 @@ int hdac_read_codec_property()
 
 	// get number of function groups in the codec
 	resp = hdal_wait_response();
-	//hdac_make_verb12(g_send_buff + 1, 0, );  
-	//hdal_send_verb_wait_response(g_send_buff, g_rcv_buff);
 	codec.root_node_count = resp;
 	codec.root_node_start = resp >> 16;
 	#if (PRINT_EN & 1)
@@ -278,7 +276,6 @@ int hdac_read_codec_property()
 	#endif // PRINT_EN
 	
 	for(int i = codec.root_node_start; i < codec.root_node_start + codec.root_node_count; i++)
-	//for(i = codec.root_node_start; i < codec.root_node_start + codec.root_node_count;)
 	{
 		hdal_send_verb(hdac_make_verb12(i, 0xf00, 5)); // verb - node function group type
 		hdal_send_verb(hdac_make_verb12(i, 0xf00, 4));//  verb - Subourdinate node count

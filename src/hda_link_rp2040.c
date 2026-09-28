@@ -80,7 +80,10 @@ int hdal_codec_reset(void)
 			case  2: gpio_put(PIN_HDA_RST, 0); break; // (+41 μs)  RST pin active
 			case  8: gpio_put(PIN_HDA_RST, 1); break; // (+125 μs) RST pin deactive
 			case 10:
-				//  (+41 μs) заполняем буфера SYNC, пока без полезной нагрузки
+				//  (+41 μs) 
+				// запускаем SM, которая будет ловить запрос адреса от кодека
+				pio_set_sm_mask_enabled(HDA_pio, 1 << sm_CAD, 1);				
+				// заполняем буфера SYNC, пока без полезной нагрузки
 				hdal_update_HDA_TX_buff(HDA_sync_buff_empty,  0,0,0);
 				hdal_update_HDA_TX_buff(HDA_sync_buff_actual, 0,0,0);
 			break;
@@ -118,10 +121,8 @@ void hdal_dma_init(void)
 	for(int i = 0; i < 2; i++)
 	{
 		sm_1000[i] = pio_claim_unused_sm(HDA_pio, true);
-		// out_1000bit_program_init(HDA_pio, sm_1000[i], offset_1000, clk_pin1000[i], data_pin1000[i]);
 		out_1000bit_program_init(HDA_pio, sm_1000[i], offset_1000, data_pin1000[i]);
 		// длину задаём L = 1000 / 2 - 2 = 248, её передаём в fifo
-		//pio_sm_put_blocking(pio, sm_1000[i], (32+20) / 2 - 2);
 		pio_sm_put_blocking(HDA_pio, sm_1000[i], (1000) / 2 - 2);
 		mask_sm_sync |= 1 << sm_1000[i];
 	}
@@ -140,7 +141,8 @@ void hdal_dma_init(void)
 	codec_address_program_init(HDA_pio, sm_CAD, offset_CAD);
 	// 3953 @ 4,    2963 @ 3
 	pio_sm_put_blocking(HDA_pio, sm_CAD, LINK_BCLK_LEN * (1000 - 10) - 7);
-	mask_sm_sync |= 1 << sm_CAD;
+	// SM, которая ловит запрос адреса от кодека, будем запускать после сброса,
+	// иначе она ловит мусор, который кодек может отправить после появления BCLK
 
 	//sprintf(str, "PIO SM: TX_1000={%i, %i}, RX_500=%i, CAD=%i"CRLF, sm_1000[0], sm_1000[1], sm_500, sm_CAD);
 	//uartputs(str);

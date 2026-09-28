@@ -35,6 +35,7 @@
 	void     hdal_send_verb(uint32_t verb);
 	uint32_t hdal_wait_response(void);
 	uint32_t hdal_send_verb_wait_response(uint32_t verb);
+	void     hdal_wait_queues_emty(void);
 	
 	
 	void dma_irq1_handler(void);

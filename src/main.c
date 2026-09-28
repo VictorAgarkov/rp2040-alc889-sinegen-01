@@ -444,7 +444,7 @@ int main()
 	/*****************************************
 	          Start HDA-Link PIO & DMA
 	*****************************************/
-	sleep_ms(30); // power-on pause
+	sleep_ms(5); // power-on pause
 	hdal_dma_start();	
 	if(hdal_codec_reset()) uartputs("CAD"CRLF);
 
