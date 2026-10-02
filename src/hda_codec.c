@@ -114,11 +114,11 @@ const codec_path_t codec_path_list[] =
 #endif
 #endif
 	
-	{0x18, 0x09, HDA_DAC_BITS_PER_SAMPLE},  // MIC1  [B] -> ADC1
+	{0x18, 0x09, HDA_ADC_BITS_PER_SAMPLE},  // MIC1  [B] -> ADC1
 #if HDA_ADC_NUM >= 2
-	{0x19, 0x08, HDA_DAC_BITS_PER_SAMPLE},  // MIC2  [F] -> ADC2
+	{0x19, 0x08, HDA_ADC_BITS_PER_SAMPLE},  // MIC2  [F] -> ADC2
 #if HDA_ADC_NUM >= 3
-	{0x1a, 0x07, HDA_DAC_BITS_PER_SAMPLE},  // LINE1 [C] -> ADC3
+	{0x1a, 0x07, HDA_ADC_BITS_PER_SAMPLE},  // LINE1 [C] -> ADC3
 #endif
 #endif
 };
